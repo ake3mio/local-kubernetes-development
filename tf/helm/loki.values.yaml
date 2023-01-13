@@ -1,0 +1,26 @@
+loki:
+  schemaConfig:
+    configs:
+      - from: 2020-09-07
+        store: boltdb-shipper
+        object_store: s3
+        schema: v11
+        index:
+          prefix: loki_index_
+          period: 24h
+
+  storageConfig:
+    boltdb_shipper:
+      shared_store: s3
+      active_index_directory: /var/loki/index
+      cache_location: /var/loki/cache
+      cache_ttl: 168h
+    filesystem:
+      directory: /var/loki/chunks
+    aws:
+      bucketnames: loki                                   # store traces in this bucket
+      endpoint: http://minio.minio.svc.cluster.local:9000
+      access_key_id: minioadmin                                 # optional. access key when using static credentials.
+      secret_access_key: minioadmin                                 # optional. secret key when using static credentials
+      s3forcepathstyle: true
+      insecure: true

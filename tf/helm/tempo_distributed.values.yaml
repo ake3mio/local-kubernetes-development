@@ -1,0 +1,71 @@
+# create bucket in minio
+search:
+  # -- Enable Tempo search
+  enabled: true
+traces:
+  otlp:
+    http:
+      enabled: true
+      receiverConfig: { }
+    grpc:
+      enabled: true
+      receiverConfig: { }
+queryFrontend:
+  query:
+    # -- Required for grafana version <7.5 for compatibility with jaeger-ui. Doesn't work on ARM arch
+    enabled: true
+storage:
+  trace:
+    backend: s3
+    s3:
+      bucket: tempo                                   # store traces in this bucket
+      endpoint: minio.minio.svc.cluster.local:9000
+      access_key: minioadmin                                 # optional. access key when using static credentials.
+      secret_key: minioadmin                                 # optional. secret key when using static credentials
+      insecure: true                                 # optional. enable if endpoint is http
+tempo:
+  extraArgs:
+    "distributor.log-received-traces": true
+  securityContext:
+    readOnlyRootFilesystem: false
+
+global_overrides:
+  metrics_generator_processors:
+    - service-graphs
+    - span-metrics
+
+metricsGenerator:
+  enabled: true
+  # -- Annotations for the metrics-generator StatefulSet
+  annotations: { }
+  # -- Number of replicas for the metrics-generator
+  replicas: 1
+
+  config:
+    registry:
+      collection_interval: 15s
+      external_labels: { }
+      stale_duration: 15m
+    processor:
+      service_graphs:
+        # -- Additional dimensions to add to the metrics. Dimensions are searched for in the
+        # -- resource and span attributes and are added to the metrics if present.
+        dimensions: [ ]
+        histogram_buckets: [ 0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8 ]
+        max_items: 10000
+        wait: 50s
+        workers: 10
+      span_metrics:
+        # -- Additional dimensions to add to the metrics along with the default dimensions.
+        # -- Dimensions are searched for in the resource and span attributes and are added to the metrics if present.
+        dimensions: [ ]
+        histogram_buckets: [ 0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.02, 2.05, 4.10 ]
+    storage:
+      path: /var/tempo/wal
+      wal:
+      remote_write_flush_deadline: 1m
+      # -- A list of remote write endpoints.
+      # -- https://prometheus.io/docs/prometheus/latest/configuration/configuration/#remote_write
+      remote_write:
+        - url: http://kube-prometheus-stack-prometheus.monitoring:9090/api/v1/write
+          send_exemplars: true

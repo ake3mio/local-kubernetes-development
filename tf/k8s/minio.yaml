@@ -1,0 +1,92 @@
+# Deploys a new Namespace for the MinIO Pod
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: minio # Change this value if you want a different namespace name
+  labels:
+    name: minio # Change this value to match metadata.name
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio-deployment
+  namespace: minio
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      volumes:
+        - name: localvolume
+          hostPath: # MinIO generally recommends using locally-attached volumes
+            path: /mnt/disk1/data # Specify a path to a local drive or volume on the Kubernetes worker node
+            type: DirectoryOrCreate # The path to the last directory must exist
+      containers:
+      - name: minio
+        image: quay.io/minio/minio:latest
+        command:
+          - /bin/bash
+          - -c
+        args:
+          - minio server /data --console-address :9090
+        volumeMounts:
+          - mountPath: /data
+            name: localvolume # Corresponds to the `spec.volumes` Persistent Volume
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio # Change this value if you want a different namespace name
+  labels:
+    name: minio # Change this value to match metadata.name
+  namespace: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - protocol: TCP
+      port: 9000
+      targetPort: 9000
+      name: api
+    - protocol: TCP
+      port: 9090
+      targetPort: 9090
+      name: console
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: minimal-ingress
+  namespace: minio
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: minio.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  name: console
+    - host: minio-api.localhost
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  name: api

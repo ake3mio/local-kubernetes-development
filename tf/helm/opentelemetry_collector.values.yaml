@@ -1,0 +1,55 @@
+mode: deployment
+config:
+  receivers:
+    otlp/spanmetrics:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:56636
+    jaeger:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:14250
+        thrift_http:
+          endpoint: 0.0.0.0:14268
+        thrift_compact:
+          endpoint: 0.0.0.0:6831
+
+  processors:
+    attributes/spanname:
+      actions:
+        - key: span.name
+          from_context: metadata.Name
+          action: upsert
+    batch: { }
+    spanmetrics:
+      metrics_exporter: prometheus
+
+  exporters:
+    logging:
+      verbosity: detailed
+    prometheus:
+      endpoint: 0.0.0.0:8889
+    otlp:
+      tls:
+        insecure: true
+      endpoint: http://tempo-distributed-distributor.monitoring.svc.cluster.local:4317
+
+  service:
+    telemetry:
+      logs:
+        level: "debug"
+    pipelines:
+      traces/debug:
+        receivers: [jaeger]
+        processors: [attributes/spanname]
+        exporters: [logging]
+
+      traces:
+        receivers: [ jaeger ]
+        processors: [ spanmetrics, batch ]
+        exporters: [ otlp ]
+
+      metrics/spanmetrics:
+        receivers: [ otlp/spanmetrics ]
+        processors: [ batch ]
+        exporters: [ prometheus ]
